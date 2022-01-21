@@ -1,35 +1,52 @@
 const express = require('express');
+const session = require('express-session');
 const passport = require('passport');
 require('./auth');
-const app = express();
-const port = 3000;
 
-const isLoggedIn = (req, res, next)=>{
-    req.user ? next() : res.sendStatus(401);
+const app = express();
+
+function isLoggedIn(req, res, next) {
+  req.user ? next() : res.sendStatus(401);
+  // this is where we'll call in the API's beyond the user model
+  // create an fetch a session ID and get the role and send it to where it needs to be
 }
 
-app.get('/', (req, res)=>{
-    res.send('<a href="/auth/google">Authenticate with Google</a>');
+app.use(session({ secret: 'cats', resave: false, saveUninitialized: true }));
+app.use(passport.initialize());
+app.use(passport.session());
+
+app.get('/', (req, res) => {
+  res.send('<a href="/auth/google">Authenticate with Google</a>');
 });
 
-app.get('/logged-in', isLoggedIn, (req, res)=>{
-    res.send(`You have successfully Logged In`);
-});
+app.get('/auth/google',
+  passport.authenticate('google', { scope: [ 'email', 'profile' ] }
+));
 
-app.get('/failed-login', (req, res)=>{
-    res.send(`Invalid Login`);
-});
-
-app.get('/auth/google', 
-    passport.authenticate('google', {scope: ['email', 'profile']})
+app.get( '/google/callback',
+  passport.authenticate( 'google', {
+    successRedirect: '/protected',
+    failureRedirect: '/auth/google/failure'
+  })
 );
 
-app.get('/google/callback', passport.authenticate('google', {
-    successRedirect: '/logged-in',
-    failureRedirect: '/failed-login'
-}))
-
-
-app.listen(port, () => {
-    console.log(`Example app listening at http://localhost:${port}`)
+app.get('/protected', isLoggedIn, (req, res) => {
+  console.log(req.user);
+  res.send(`Hello ${req.user.displayName}`);
 });
+
+app.get('/logout', (req, res) => {
+  req.logout();
+  req.session.destroy();
+  // send an API to delete the session from the Sessions Auth in backend
+  res.send('Goodbye!');
+});
+
+app.get('/auth/google/failure', (req, res) => {
+  res.send('Failed to authenticate..');
+});
+
+app.listen(3000, () => console.log('listening on port: 3000'));
+
+
+//Every API henceforth shall take in session ID
